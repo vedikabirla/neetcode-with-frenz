@@ -20,14 +20,9 @@ interface ParticipantError {
   message: string
 }
 
-function formatLastSubmission(date: Date | null): string {
-  if (!date) return 'No submissions yet'
-  return `Last submission: ${date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`
-}
-
 function App() {
   const [completionByParticipant, setCompletionByParticipant] = useState<Record<string, Set<string>>>({})
-  const [lastSubmission, setLastSubmission] = useState<Date | null>(null)
+  const [lastSubmissionByParticipant, setLastSubmissionByParticipant] = useState<Record<string, Date | null>>({})
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<ParticipantError[]>([])
   const [recentlyCompleted, setRecentlyCompleted] = useState<Set<string>>(new Set())
@@ -46,17 +41,14 @@ function App() {
     )
 
     const nextCompletion: Record<string, Set<string>> = {}
+    const nextLastSubmission: Record<string, Date | null> = {}
     const nextErrors: ParticipantError[] = []
-    let latest: Date | null = null
 
     results.forEach((result, index) => {
       const participant = configuredParticipants[index]
       if (result.status === 'fulfilled') {
         nextCompletion[participant.name] = buildCompletionSet(problems, result.value.folderNames)
-        const commitDate = result.value.lastSolutionCommitDate
-        if (commitDate && (!latest || commitDate > latest)) {
-          latest = commitDate
-        }
+        nextLastSubmission[participant.name] = result.value.lastSolutionCommitDate
       } else {
         const message =
           result.reason instanceof GitHubApiError
@@ -84,7 +76,7 @@ function App() {
     hasLoadedOnceRef.current = true
 
     setCompletionByParticipant(nextCompletion)
-    setLastSubmission(latest)
+    setLastSubmissionByParticipant(nextLastSubmission)
     setErrors(nextErrors)
     setLoading(false)
   }, [])
@@ -118,7 +110,6 @@ function App() {
               NeetCode with Frenz
               <Sparkle className="h-5 w-5 text-butter motion-safe:animate-[gentle-bob_4s_ease-in-out_infinite]" />
             </h1>
-            <p className="mt-1 text-xs text-slate-400">{formatLastSubmission(lastSubmission)}</p>
           </div>
           <button
             type="button"
@@ -145,6 +136,7 @@ function App() {
         <ProgressSummary
           participants={participants}
           completionByParticipant={completionByParticipant}
+          lastSubmissionByParticipant={lastSubmissionByParticipant}
           totalProblems={problems.length}
         />
 

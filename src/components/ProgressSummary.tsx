@@ -4,12 +4,19 @@ import { accentClasses, getParticipantAccent } from '../utils/participantColors'
 interface ProgressSummaryProps {
   participants: Participant[]
   completionByParticipant: Record<string, Set<string>>
+  lastSubmissionByParticipant: Record<string, Date | null>
   totalProblems: number
+}
+
+function formatLastSubmission(date: Date | null | undefined): string {
+  if (!date) return 'No submissions yet'
+  return `Last submission: ${date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`
 }
 
 export function ProgressSummary({
   participants,
   completionByParticipant,
+  lastSubmissionByParticipant,
   totalProblems,
 }: ProgressSummaryProps) {
   return (
@@ -53,6 +60,9 @@ export function ProgressSummary({
                 style={{ width: `${percent}%` }}
               />
             </div>
+            <p className="mt-2 text-xs text-slate-400">
+              {formatLastSubmission(lastSubmissionByParticipant[participant.name])}
+            </p>
           </div>
         )
       })}
