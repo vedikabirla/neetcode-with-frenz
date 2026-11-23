@@ -22,6 +22,9 @@ interface AssignmentCardProps {
 
 function AssignmentCard({ assignment, participants, progress, onChange }: AssignmentCardProps) {
   const { title, category, duration, required, instructions, resources, submissionLink, submissionLabel } = assignment
+  const assignedParticipants = participants
+    .map(({ name }, index) => ({ name, accent: accentClasses[getParticipantAccent(index)] }))
+    .filter(({ name }) => !assignment.participantNames || assignment.participantNames.includes(name))
 
   return (
     <article aria-label={title} className="rounded-2xl border border-lavender/20 bg-night-card p-4">
@@ -44,7 +47,7 @@ function AssignmentCard({ assignment, participants, progress, onChange }: Assign
           )}
           {submissionLabel && (
             <div className="space-y-2">
-              {participants.map(({ name }) => {
+              {assignedParticipants.map(({ name }) => {
                 const url = progress?.[name]?.submissionUrl
                 return (
                   <form
@@ -87,21 +90,18 @@ function AssignmentCard({ assignment, participants, progress, onChange }: Assign
       </details>
 
       <div className="mt-3 flex flex-wrap gap-x-3 border-t border-lavender/15 pt-1">
-        {participants.map(({ name }, index) => {
-          const accent = accentClasses[getParticipantAccent(index)]
-          return (
-            <label key={name} className={`flex min-h-10 cursor-pointer items-center gap-2 text-sm ${accent.text}`}>
-              <input
-                type="checkbox"
-                className="size-4 accent-lavender focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender"
-                aria-label={`${name}: ${title} complete`}
-                checked={progress?.[name]?.completed ?? false}
-                onChange={(event) => onChange(name, { completed: event.currentTarget.checked })}
-              />
-              {name}
-            </label>
-          )
-        })}
+        {assignedParticipants.map(({ name, accent }) => (
+          <label key={name} className={`flex min-h-10 cursor-pointer items-center gap-2 text-sm ${accent.text}`}>
+            <input
+              type="checkbox"
+              className="size-4 accent-lavender focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender"
+              aria-label={`${name}: ${title} complete`}
+              checked={progress?.[name]?.completed ?? false}
+              onChange={(event) => onChange(name, { completed: event.currentTarget.checked })}
+            />
+            {name}
+          </label>
+        ))}
       </div>
     </article>
   )
@@ -171,19 +171,20 @@ export function WeeklyPlan({ participants }: { participants: Participant[] }) {
           <div className="mt-4 grid gap-4 sm:grid-cols-3">
             {participants.map(({ name }, index) => {
               const accent = accentClasses[getParticipantAccent(index)]
-              const complete = requiredAssignments.filter(({ id }) => weekProgress?.[id]?.[name]?.completed).length
-              const percentage = Math.round(100 * complete / requiredAssignments.length)
+              const assigned = requiredAssignments.filter(({ participantNames }) => !participantNames || participantNames.includes(name))
+              const complete = assigned.filter(({ id }) => weekProgress?.[id]?.[name]?.completed).length
+              const percentage = assigned.length ? Math.round(100 * complete / assigned.length) : 0
               return (
                 <div key={name}>
                   <div className="flex justify-between gap-2 text-sm">
                     <span className={accent.text}>{name}</span>
-                    <span className="text-slate-300">{percentage}%</span>
+                    <span className="text-slate-300">{assigned.length ? `${percentage}%` : 'No required assignments'}</span>
                   </div>
                   <div
                     role="progressbar"
                     aria-label={`${name}’s weekly progress`}
                     aria-valuenow={percentage}
-                    aria-valuetext={`${complete} of ${requiredAssignments.length} required assignments complete`}
+                    aria-valuetext={`${complete} of ${assigned.length} required assignments complete`}
                     className="mt-2 h-2 overflow-hidden rounded-full bg-night"
                   >
                     <div className={`h-full rounded-full ${accent.bar}`} style={{ width: `${percentage}%` }} />
@@ -206,6 +207,14 @@ export function WeeklyPlan({ participants }: { participants: Participant[] }) {
         <section key={date} aria-labelledby={`plan-day-${date}`} className="space-y-2">
           <h3 id={`plan-day-${date}`} className="font-display text-sm font-bold text-lavender">{dayLabel.format(parseDate(date))}</h3>
           {week?.dayNotes?.[date] && <p className="text-sm text-slate-300">{week.dayNotes[date]}</p>}
+          {week?.dayResources?.[date]?.length ? (
+            <details className="rounded-2xl border border-lavender/20 bg-night-card p-4 text-sm">
+              <summary className="cursor-pointer font-semibold text-lavender">System design references</summary>
+              <ul className="mt-2 space-y-1 pl-4">
+                {week.dayResources[date].map((link) => <li key={link.url}><ExternalLink {...link} /></li>)}
+              </ul>
+            </details>
+          ) : null}
           {restDays[date] && (
             <p className="rounded-2xl border border-lavender/20 bg-night-card p-4 text-sm text-slate-300">{restDays[date]}</p>
           )}

@@ -38,6 +38,7 @@ export interface WeeklyAssignment {
   category: WeeklyCategory
   duration: string
   required: boolean
+  participantNames?: string[]
   resources?: WeeklyLink[]
   submissionLink?: WeeklyLink
   submissionLabel?: string
@@ -49,6 +50,7 @@ export interface WeeklyWeek {
   startDate: string
   restDays?: Record<string, string>
   dayNotes?: Record<string, string>
+  dayResources?: Record<string, WeeklyLink[]>
   assignments: WeeklyAssignment[]
 }
 
