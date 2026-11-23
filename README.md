@@ -31,3 +31,5 @@ npm install
 npm run dev      # starts the dev server
 npm run build    # typecheck + production build
 ```
+
+Run `npm test` on Node 24 to test with sample GitHub responses. For browser checks, start `npm run dev -- --mode fixtures` and use the URL it prints. In this mode, the tracker shows sample data and **Refresh** uses the same fixtures without calling GitHub.
