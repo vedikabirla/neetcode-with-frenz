@@ -27,6 +27,7 @@ export type WeeklyCategory = 'Algorithm' | 'System Design' | 'Behavioral' | 'Mee
 export interface WeeklyLink {
   label: string
   url: string
+  description?: string
 }
 
 export interface WeeklyAssignment {
@@ -39,6 +40,7 @@ export interface WeeklyAssignment {
   duration: string
   required: boolean
   participantNames?: string[]
+  group?: string
   resources?: WeeklyLink[]
   submissionLink?: WeeklyLink
   submissionLabel?: string
