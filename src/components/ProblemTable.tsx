@@ -49,19 +49,13 @@ export function ProblemTable({
 
   return (
     <>
-      <div className="mb-2 flex items-center justify-end gap-4 px-4 text-xs font-medium text-slate-400">
-        <span className="w-14 text-right">Difficulty</span>
-        {participants.map((participant) => (
-          <span key={participant.name} className="w-6 text-center" title={participant.name}>
-            {participant.name.slice(0, 2)}
-          </span>
-        ))}
-      </div>
-
       {[...grouped.entries()].map(([category, categoryProblems]) => {
         return (
-          <section key={category} className="mb-8">
-            <div className="mb-2 flex items-center gap-2 px-4">
+          <section
+            key={category}
+            className="mb-8 overflow-hidden rounded-2xl border border-white/5 bg-night-card shadow-[0_4px_20px_rgba(0,0,0,0.2)]"
+          >
+            <div className="flex items-center gap-2 border-b border-white/5 px-4 py-3">
               <span
                 className="motion-safe:animate-[gentle-bob_5s_ease-in-out_infinite]"
                 aria-hidden="true"
@@ -72,7 +66,7 @@ export function ProblemTable({
                 {category}
               </h2>
             </div>
-            <ul className="divide-y divide-white/5 overflow-hidden rounded-2xl border border-white/5 bg-night-card shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
+            <ul className="divide-y divide-white/5">
               {categoryProblems.map((problem) => (
                 <li
                   key={problem.slug}

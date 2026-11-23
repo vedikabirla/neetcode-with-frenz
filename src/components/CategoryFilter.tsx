@@ -1,10 +1,11 @@
+import type { Participant } from '../types'
+import { accentClasses, getParticipantAccent } from '../utils/participantColors'
+
 interface CategoryFilterProps {
   categories: string[]
   selectedCategory: string
   onSelectCategory: (category: string) => void
-  focusParticipantName: string | null
-  hideCompleted: boolean
-  onToggleHideCompleted: () => void
+  participants: Participant[]
 }
 
 export const ALL_CATEGORIES = 'All categories'
@@ -13,12 +14,10 @@ export function CategoryFilter({
   categories,
   selectedCategory,
   onSelectCategory,
-  focusParticipantName,
-  hideCompleted,
-  onToggleHideCompleted,
+  participants,
 }: CategoryFilterProps) {
   return (
-    <div className="mb-6 flex flex-wrap items-center gap-2">
+    <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
       <select
         value={selectedCategory}
         onChange={(event) => onSelectCategory(event.target.value)}
@@ -32,20 +31,21 @@ export function CategoryFilter({
         ))}
       </select>
 
-      {focusParticipantName && (
-        <button
-          type="button"
-          onClick={onToggleHideCompleted}
-          aria-pressed={hideCompleted}
-          className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
-            hideCompleted
-              ? 'border-mint/40 bg-mint/15 text-mint'
-              : 'border-white/10 bg-night-card text-slate-300 hover:border-mint/30 hover:text-mint'
-          }`}
-        >
-          🙈 Hide {focusParticipantName}'s solved
-        </button>
-      )}
+      <div className="flex items-center gap-3">
+        <span className="text-xs font-medium tracking-wide text-slate-400 uppercase">Level</span>
+        {participants.map((participant, index) => {
+          const accent = accentClasses[getParticipantAccent(index)]
+          return (
+            <span
+              key={participant.name}
+              title={participant.name}
+              className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold text-night ${accent.bar}`}
+            >
+              {participant.name.slice(0, 1)}
+            </span>
+          )
+        })}
+      </div>
     </div>
   )
 }

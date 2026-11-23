@@ -27,7 +27,6 @@ function App() {
   const [errors, setErrors] = useState<ParticipantError[]>([])
   const [recentlyCompleted, setRecentlyCompleted] = useState<Set<string>>(new Set())
   const [selectedCategory, setSelectedCategory] = useState(ALL_CATEGORIES)
-  const [hideCompleted, setHideCompleted] = useState(false)
 
   const previousCompletionRef = useRef<Record<string, Set<string>> | null>(null)
   const hasLoadedOnceRef = useRef(false)
@@ -85,18 +84,12 @@ function App() {
     refresh()
   }, [refresh])
 
-  const focusParticipant = configuredParticipants[0] ?? null
-
   const filteredProblems = useMemo(() => {
     return problems.filter((problem) => {
       if (selectedCategory !== ALL_CATEGORIES && problem.category !== selectedCategory) return false
-      if (hideCompleted && focusParticipant) {
-        const isComplete = completionByParticipant[focusParticipant.name]?.has(problem.slug)
-        if (isComplete) return false
-      }
       return true
     })
-  }, [selectedCategory, hideCompleted, focusParticipant, completionByParticipant])
+  }, [selectedCategory])
 
   return (
     <div className="isolate min-h-screen bg-night text-slate-100">
@@ -144,9 +137,7 @@ function App() {
           categories={categoryOrder}
           selectedCategory={selectedCategory}
           onSelectCategory={setSelectedCategory}
-          focusParticipantName={focusParticipant?.name ?? null}
-          hideCompleted={hideCompleted}
-          onToggleHideCompleted={() => setHideCompleted((prev) => !prev)}
+          participants={participants}
         />
 
         <ProblemTable
