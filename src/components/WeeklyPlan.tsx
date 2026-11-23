@@ -31,20 +31,30 @@ function AssignmentCard({ assignment, participants, progress, onChange }: Assign
       <details>
         <summary className="cursor-pointer rounded-lg text-slate-100 focus-visible:outline-2 focus-visible:outline-lavender">
           <span className="font-display text-base font-bold">{title}</span>
-          {!assignment.group && <span className="mt-1 flex flex-wrap gap-x-3 gap-y-1 pl-4 text-xs text-slate-300">
+          <span className="mt-1 flex flex-wrap gap-x-3 gap-y-1 pl-4 text-xs text-slate-300">
             <span>{category}</span>
             <span>{duration}</span>
             <span className={required ? 'text-lavender' : 'text-butter'}>{required ? 'Required' : 'Optional'}</span>
-          </span>}
+          </span>
         </summary>
         <div className="mt-3 space-y-3 pl-4 text-sm">
           <p className="whitespace-pre-line text-slate-200">{instructions}</p>
-          {(Boolean(resources?.length) || submissionLink) && (
-            <ul className="space-y-1">
-              {resources?.map((link) => <li key={link.url}><ExternalLink {...link} /></li>)}
-              {submissionLink && <li><ExternalLink {...submissionLink} /></li>}
-            </ul>
+          {resources && resources.length > 0 && (
+            <details>
+              <summary className="cursor-pointer rounded-lg font-semibold text-lavender focus-visible:outline-2 focus-visible:outline-lavender">
+                Resources
+              </summary>
+              <ul className="mt-2 space-y-2 pl-4">
+                {resources.map((link) => (
+                  <li key={link.url}>
+                    <ExternalLink {...link} />
+                    {link.description && <p className="text-slate-300">{link.description}</p>}
+                  </li>
+                ))}
+              </ul>
+            </details>
           )}
+          {submissionLink && <ExternalLink {...submissionLink} />}
           {submissionLabel && (
             <div className="space-y-2">
               {assignedParticipants.map(({ name }) => {
@@ -154,6 +164,7 @@ export function WeeklyPlan({ participants }: { participants: Participant[] }) {
           <h2 id="weekly-date" className="font-display mt-1 text-xl font-bold text-slate-50">
             {dateRange.formatRange(parseDate(selectedWeek), parseDate(shiftDate(selectedWeek, 4)))}
           </h2>
+          {week?.systemDesignTopic && <p className="mt-1 text-sm text-slate-300">System design topic · {week.systemDesignTopic}</p>}
         </div>
         <div className="flex flex-wrap gap-2" aria-label="Week navigation" role="group">
           <button type="button" className={buttonClasses} onClick={() => setSelectedWeek((date) => shiftDate(date, -7))}>Previous week</button>
@@ -164,15 +175,21 @@ export function WeeklyPlan({ participants }: { participants: Participant[] }) {
         {storageError && <p role="status" className="text-sm text-blush">Browser storage is unavailable. These changes may be lost after refresh.</p>}
       </section>
 
-      <section aria-labelledby="normal-week-plan" className="rounded-2xl border border-lavender/20 bg-night-card p-4 sm:p-5">
-        <h3 id="normal-week-plan" className="font-display font-bold">A typical study week</h3>
-        <p className="mt-1 text-sm text-slate-300">For now, solve one LeetCode problem per weekday. Holiday schedules can differ.</p>
-        <ul className="mt-3 space-y-1 text-sm text-slate-300">
-          {normalWeekPlan.map(({ day, activity }) => (
-            <li key={day}><strong className="text-slate-100">{day}</strong> · {activity}</li>
+      <details className="rounded-2xl border border-lavender/20 bg-night-card p-4 sm:p-5">
+        <summary className="font-display cursor-pointer rounded-lg font-bold focus-visible:outline-2 focus-visible:outline-lavender">A typical study week</summary>
+        <p className="mt-1 text-sm text-slate-300">We’ll have one system design topic each week that we all work on. Holiday schedules can differ.</p>
+        <p className="mt-2 text-sm text-slate-300">We’ll adjust the pace as we go based on how much time everyone has. If the plan starts to feel stressful, we’ll scale it back. The goal is to build a habit by doing a little each day.</p>
+        <ul className="mt-3 space-y-3 text-sm text-slate-300">
+          {normalWeekPlan.map(({ day, activities }) => (
+            <li key={day}>
+              <strong className="text-slate-100">{day}</strong>
+              <ul className="mt-1 list-disc space-y-1 pl-5">
+                {activities.map((activity) => <li key={activity}>{activity}</li>)}
+              </ul>
+            </li>
           ))}
         </ul>
-      </section>
+      </details>
 
       {requiredAssignments.length > 0 && (
         <section aria-labelledby="weekly-progress" className="rounded-2xl border border-lavender/20 bg-night-card p-4 sm:p-5">
@@ -213,16 +230,13 @@ export function WeeklyPlan({ participants }: { participants: Participant[] }) {
         </section>
       )}
 
-      {days.map((date) => {
-        const assignments = week?.assignments.filter((assignment) => assignment.date === date) ?? []
-        const groups = new Map<string | undefined, WeeklyAssignment[]>()
-        for (const assignment of assignments) {
-          const group = groups.get(assignment.group)
-          if (group) group.push(assignment)
-          else groups.set(assignment.group, [assignment])
-        }
-        function renderAssignment(assignment: WeeklyAssignment) {
-          return (
+      {days.map((date) => (
+        <section key={date} aria-labelledby={`plan-day-${date}`} className="space-y-2">
+          <h3 id={`plan-day-${date}`} className="font-display text-sm font-bold text-lavender">{dayLabel.format(parseDate(date))}</h3>
+          {restDays[date] && (
+            <p className="rounded-2xl border border-lavender/20 bg-night-card p-4 text-sm text-slate-300">{restDays[date]}</p>
+          )}
+          {week?.assignments.filter((assignment) => assignment.date === date).map((assignment) => (
             <AssignmentCard
               key={assignment.id}
               assignment={assignment}
@@ -230,38 +244,9 @@ export function WeeklyPlan({ participants }: { participants: Participant[] }) {
               progress={weekProgress?.[assignment.id]}
               onChange={(name, patch) => saveProgress(assignment.id, name, patch)}
             />
-          )
-        }
-        return (
-          <section key={date} aria-labelledby={`plan-day-${date}`} className="space-y-2">
-            <h3 id={`plan-day-${date}`} className="font-display text-sm font-bold text-lavender">{dayLabel.format(parseDate(date))}</h3>
-            {week?.dayNotes?.[date] && <p className="text-sm text-slate-300">{week.dayNotes[date]}</p>}
-            {restDays[date] && (
-              <p className="rounded-2xl border border-lavender/20 bg-night-card p-4 text-sm text-slate-300">{restDays[date]}</p>
-            )}
-            {[...groups].map(([group, items]) => group ? (
-              <section key={group} aria-label={group} className="space-y-2 rounded-2xl border border-lavender/20 bg-night-card/50 p-4">
-                <h4 className="font-display font-bold">{group}</h4>
-                <p className="text-sm text-slate-300">Optional · 1 minute. Check your name next to each topic you’ve already reviewed.</p>
-                {items.map(renderAssignment)}
-              </section>
-            ) : items.map(renderAssignment))}
-            {week?.dayResources?.[date]?.length ? (
-              <details className="rounded-2xl border border-lavender/20 bg-night-card p-4 text-sm">
-                <summary className="cursor-pointer font-semibold text-lavender">System design references</summary>
-                <ul className="mt-2 space-y-2 pl-4">
-                  {week.dayResources[date].map((link) => (
-                    <li key={link.url}>
-                      <ExternalLink {...link} />
-                      {link.description && <p className="text-slate-300">{link.description}</p>}
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            ) : null}
-          </section>
-        )
-      })}
+          ))}
+        </section>
+      ))}
     </div>
   )
 }

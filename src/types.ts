@@ -40,7 +40,6 @@ export interface WeeklyAssignment {
   duration: string
   required: boolean
   participantNames?: string[]
-  group?: string
   resources?: WeeklyLink[]
   submissionLink?: WeeklyLink
   submissionLabel?: string
@@ -51,8 +50,7 @@ export interface WeeklyWeek {
   /** Local calendar date in YYYY-MM-DD format, starting on a Monday. */
   startDate: string
   restDays?: Record<string, string>
-  dayNotes?: Record<string, string>
-  dayResources?: Record<string, WeeklyLink[]>
+  systemDesignTopic?: string
   assignments: WeeklyAssignment[]
 }
 
