@@ -8,11 +8,15 @@ import { WeeklyPlan } from './components/WeeklyPlan'
 import { participants } from './data/participants'
 import problemsData from './data/problems.json'
 import { fetchParticipantGithubData, GitHubApiError } from './services/github'
+import { isProgressFresh, readGitHubProgress, saveGitHubProgress, toCachedProgress } from './services/githubProgressCache'
 import { isParticipantConfigured, type Problem } from './types'
 import { buildCompletionSet } from './utils/problemMatcher'
 
 const problems = problemsData as Problem[]
 const configuredParticipants = participants.filter(isParticipantConfigured)
+const cacheNamespace = import.meta.env.DEV && import.meta.env.MODE === 'fixtures' ? 'fixtures' : 'live'
+const cacheKey = `frenz:github-progress:v1:${cacheNamespace}:${JSON.stringify(configuredParticipants)}`
+const participantNames = configuredParticipants.map(({ name }) => name)
 const categoryOrder = [...new Set(problems.map((p) => p.category))]
 const RECENTLY_COMPLETED_DISPLAY_MS = 1500
 const tabs = [
@@ -27,68 +31,84 @@ interface ParticipantError {
 
 function App() {
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]['id']>('tracker')
-  const [completionByParticipant, setCompletionByParticipant] = useState<Record<string, Set<string>>>({})
-  const [lastSubmissionByParticipant, setLastSubmissionByParticipant] = useState<Record<string, Date | null>>({})
+  const [progress, setProgress] = useState(() => readGitHubProgress(cacheKey, participantNames))
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<ParticipantError[]>([])
   const [recentlyCompleted, setRecentlyCompleted] = useState<Set<string>>(new Set())
   const [selectedCategory, setSelectedCategory] = useState(ALL_CATEGORIES)
 
-  const previousCompletionRef = useRef<Record<string, Set<string>> | null>(null)
-  const hasLoadedOnceRef = useRef(false)
+  const progressRef = useRef(progress)
+  const refreshInFlight = useRef(false)
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (force = false) => {
+    if (refreshInFlight.current) return
+
+    const previous = progressRef.current
+    const now = Date.now()
+    const requested = configuredParticipants.filter(({ name }) => force || !isProgressFresh(previous[name], now))
+    if (requested.length === 0) return
+
+    refreshInFlight.current = true
     setLoading(true)
     setErrors([])
 
-    const results = await Promise.allSettled(
-      configuredParticipants.map((participant) => fetchParticipantGithubData(participant)),
-    )
-
-    const nextCompletion: Record<string, Set<string>> = {}
-    const nextLastSubmission: Record<string, Date | null> = {}
+    const results = await Promise.allSettled(requested.map(fetchParticipantGithubData))
+    const next = { ...previous }
     const nextErrors: ParticipantError[] = []
+    const newlyCompleted = new Set<string>()
+    const checkedAt = Date.now()
 
     results.forEach((result, index) => {
-      const participant = configuredParticipants[index]
+      const { name } = requested[index]
       if (result.status === 'fulfilled') {
-        nextCompletion[participant.name] = buildCompletionSet(problems, result.value.folderNames)
-        nextLastSubmission[participant.name] = result.value.lastSolutionCommitDate
+        const oldEntry = previous[name]
+        if (oldEntry) {
+          const oldSolves = buildCompletionSet(problems, oldEntry.folderNames)
+          for (const slug of buildCompletionSet(problems, result.value.folderNames)) {
+            if (!oldSolves.has(slug)) newlyCompleted.add(`${name}:${slug}`)
+          }
+        }
+        next[name] = toCachedProgress(result.value, checkedAt)
       } else {
-        const message =
-          result.reason instanceof GitHubApiError
-            ? result.reason.message
-            : 'Unexpected error fetching GitHub data.'
-        nextErrors.push({ participantName: participant.name, message })
+        const message = result.reason instanceof GitHubApiError
+          ? result.reason.message
+          : 'Unexpected error fetching GitHub data.'
+        nextErrors.push({ participantName: name, message: previous[name] ? `${message} Showing saved progress.` : message })
       }
     })
 
-    if (hasLoadedOnceRef.current) {
-      const newlyCompleted = new Set<string>()
-      for (const participant of configuredParticipants) {
-        const prevSet = previousCompletionRef.current?.[participant.name] ?? new Set<string>()
-        const nextSet = nextCompletion[participant.name] ?? new Set<string>()
-        for (const slug of nextSet) {
-          if (!prevSet.has(slug)) newlyCompleted.add(`${participant.name}:${slug}`)
-        }
-      }
-      if (newlyCompleted.size > 0) {
-        setRecentlyCompleted(newlyCompleted)
-        setTimeout(() => setRecentlyCompleted(new Set()), RECENTLY_COMPLETED_DISPLAY_MS)
-      }
+    if (newlyCompleted.size > 0) {
+      setRecentlyCompleted(newlyCompleted)
+      setTimeout(() => setRecentlyCompleted(new Set()), RECENTLY_COMPLETED_DISPLAY_MS)
     }
-    previousCompletionRef.current = nextCompletion
-    hasLoadedOnceRef.current = true
-
-    setCompletionByParticipant(nextCompletion)
-    setLastSubmissionByParticipant(nextLastSubmission)
+    progressRef.current = next
+    setProgress(next)
+    if (results.some((result) => result.status === 'fulfilled')) saveGitHubProgress(cacheKey, next)
     setErrors(nextErrors)
     setLoading(false)
+    refreshInFlight.current = false
   }, [])
 
   useEffect(() => {
-    refresh()
+    // Schedule the initial refresh after render and cancel the Strict Mode probe.
+    const timer = setTimeout(() => void refresh(), 0)
+    return () => clearTimeout(timer)
   }, [refresh])
+
+  const { completionByParticipant, lastSubmissionByParticipant, lastChecked } = useMemo(() => {
+    const completionByParticipant: Record<string, Set<string>> = {}
+    const lastSubmissionByParticipant: Record<string, Date | null> = {}
+    let lastChecked: number | undefined
+
+    for (const { name } of configuredParticipants) {
+      const entry = progress[name]
+      if (!entry) continue
+      completionByParticipant[name] = buildCompletionSet(problems, entry.folderNames)
+      lastSubmissionByParticipant[name] = entry.lastSubmission ? new Date(entry.lastSubmission) : null
+      lastChecked = Math.min(lastChecked ?? entry.checkedAt, entry.checkedAt)
+    }
+    return { completionByParticipant, lastSubmissionByParticipant, lastChecked }
+  }, [progress])
 
   const filteredProblems = useMemo(() => {
     return problems.filter((problem) => {
@@ -109,11 +129,16 @@ function App() {
               NeetCode with Frenz
               <Sparkle className="h-5 w-5 text-butter motion-safe:animate-[gentle-bob_4s_ease-in-out_infinite]" />
             </h1>
+            {activeTab === 'tracker' && lastChecked !== undefined && (
+              <p className="mt-1 text-xs text-slate-400">
+                Progress last checked {new Date(lastChecked).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+              </p>
+            )}
           </div>
           {activeTab === 'tracker' && (
             <button
               type="button"
-              onClick={refresh}
+              onClick={() => void refresh(true)}
               disabled={loading}
               className="font-display shrink-0 rounded-full border border-lavender/30 bg-night-card px-4 py-1.5 text-sm font-semibold text-lavender shadow-sm transition-colors hover:bg-lavender/10 disabled:opacity-50"
             >
@@ -178,6 +203,7 @@ function App() {
             completionByParticipant={completionByParticipant}
             lastSubmissionByParticipant={lastSubmissionByParticipant}
             totalProblems={problems.length}
+            loading={loading}
           />
 
           <CategoryFilter

@@ -85,18 +85,20 @@ export function ProblemTable({
                       {problem.difficulty}
                     </span>
                     {participants.map((participant, index) => {
-                      if (!isParticipantConfigured(participant)) {
+                      const configured = isParticipantConfigured(participant)
+                      const completion = completionByParticipant[participant.name]
+                      if (!configured || !completion) {
                         return (
                           <span
                             key={participant.name}
-                            title={`${participant.name}: GitHub info not added yet`}
+                            title={`${participant.name}: ${configured ? "progress unavailable" : "GitHub info not added yet"}`}
                             className="w-6 text-center text-slate-700"
                           >
                             –
                           </span>
                         )
                       }
-                      const isComplete = completionByParticipant[participant.name]?.has(problem.slug)
+                      const isComplete = completion.has(problem.slug)
                       const justCompleted = recentlyCompleted.has(`${participant.name}:${problem.slug}`)
                       const accent = accentClasses[getParticipantAccent(index)]
                       return (

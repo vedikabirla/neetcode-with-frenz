@@ -1,6 +1,13 @@
 import type { Participant } from '../types'
 
-export class GitHubApiError extends Error {}
+export class GitHubApiError extends Error {
+  readonly status?: number
+
+  constructor(message: string, status?: number) {
+    super(message)
+    this.status = status
+  }
+}
 
 type ConfiguredParticipant = Participant & { githubUsername: string; repo: string }
 
@@ -28,16 +35,16 @@ async function fetchJson<T>(url: string): Promise<T> {
 
   if (!response.ok) {
     if (response.status === 404) {
-      throw new GitHubApiError('Repository not found. Check the username and repo name in participants.ts.')
+      throw new GitHubApiError('Repository not found. Check the username and repo name in participants.ts.', response.status)
     }
     if (response.status === 403 && response.headers.get('x-ratelimit-remaining') === '0') {
       const resetHeader = response.headers.get('x-ratelimit-reset')
       const resetTime = resetHeader
         ? new Date(Number(resetHeader) * 1000).toLocaleTimeString()
         : 'later'
-      throw new GitHubApiError(`GitHub API rate limit exceeded. Try again after ${resetTime}.`)
+      throw new GitHubApiError(`GitHub API rate limit exceeded. Try again after ${resetTime}.`, response.status)
     }
-    throw new GitHubApiError(`GitHub API error (${response.status} ${response.statusText}).`)
+    throw new GitHubApiError(`GitHub API error (${response.status} ${response.statusText}).`, response.status)
   }
 
   return response.json() as Promise<T>
@@ -78,9 +85,12 @@ export async function fetchParticipantGithubData(
     )
       .then((commits) => {
         const date = commits[0]?.commit.committer?.date ?? commits[0]?.commit.author?.date
-        return date ? new Date(date) : null
+        return date && Number.isFinite(Date.parse(date)) ? new Date(date) : null
       })
-      .catch(() => null), // empty repo or no commits on this path - not fatal
+      .catch((error: unknown) => {
+        if (error instanceof GitHubApiError && error.status === 409) return null
+        throw error
+      }),
   ])
 
   const prefix = solutionDir ? `${solutionDir}/` : ''

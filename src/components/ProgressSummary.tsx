@@ -6,6 +6,7 @@ interface ProgressSummaryProps {
   completionByParticipant: Record<string, Set<string>>
   lastSubmissionByParticipant: Record<string, Date | null>
   totalProblems: number
+  loading: boolean
 }
 
 function formatLastSubmission(date: Date | null | undefined): string {
@@ -18,6 +19,7 @@ export function ProgressSummary({
   completionByParticipant,
   lastSubmissionByParticipant,
   totalProblems,
+  loading,
 }: ProgressSummaryProps) {
   return (
     <div className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -36,7 +38,16 @@ export function ProgressSummary({
           )
         }
 
-        const completed = completionByParticipant[participant.name]?.size ?? 0
+        const completion = completionByParticipant[participant.name]
+        if (!completion) {
+          return (
+            <div key={participant.name} className="rounded-2xl border border-white/5 bg-night-card px-4 py-3">
+              <p className={`font-display font-semibold ${accent.text}`}>{participant.name}</p>
+              <p className="mt-1 text-xs text-slate-400">{loading ? 'Checking progress…' : 'Progress unavailable'}</p>
+            </div>
+          )
+        }
+        const completed = completion.size
         const percent = Math.round((completed / totalProblems) * 100)
 
         return (
